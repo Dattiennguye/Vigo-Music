@@ -288,11 +288,7 @@ fun BrowserScreen(holder: WebHolder, bottomPadding: Dp, toast: (String) -> Unit)
                 StartPanel(bottomPadding) { q -> holder.open(q, addMp3) }
             }
 
-            AnimatedVisibility(
-                showDownloads,
-                Modifier.align(Alignment.BottomCenter),
-                enter = slideInVertically { it }, exit = slideOutVertically { it },
-            ) {
+            SlideUpPanel(showDownloads, Modifier.align(Alignment.BottomCenter)) {
                 DownloadsPanel(bottomPadding, onClose = { showDownloads = false })
             }
         }
@@ -356,6 +352,12 @@ fun BrowserScreen(holder: WebHolder, bottomPadding: Dp, toast: (String) -> Unit)
             dismissButton = { TextButton(onClick = { pasting = false }) { Text("Hủy") } },
         )
     }
+}
+
+/** Tách riêng để gọi AnimatedVisibility ngoài phạm vi Column. */
+@Composable
+private fun SlideUpPanel(visible: Boolean, modifier: Modifier, content: @Composable () -> Unit) {
+    AnimatedVisibility(visible, modifier, enter = slideInVertically { it }, exit = slideOutVertically { it }) { content() }
 }
 
 @Composable
