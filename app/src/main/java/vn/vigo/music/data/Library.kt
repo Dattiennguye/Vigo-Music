@@ -114,6 +114,8 @@ object Library {
             val t = byId(id) ?: return
             fileOf(t).delete()
             artFileOf(id).delete()
+            File(root, "lyrics/$id.lrc").delete()
+            File(root, "lyrics/$id.none").delete()
             _tracks.value = _tracks.value.filterNot { it.id == id }
             _favorites.value = _favorites.value - id
             _playlists.value = _playlists.value.map { p -> p.copy(trackIds = p.trackIds - id) }

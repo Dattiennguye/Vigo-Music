@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -65,7 +66,7 @@ fun OnboardingScreen(onDone: () -> Unit) {
                 "Bỏ qua",
                 style = VG.Title.copy(fontWeight = FontWeight.Normal, fontSize = 17.sp),
                 modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp)
-                    .clip(RoundedCornerShape(8.dp)).clickable { onDone() }.padding(8.dp),
+                    .bounceClick { onDone() }.padding(8.dp),
             )
         }
         HorizontalPager(pager, Modifier.weight(1f)) { page ->
@@ -73,7 +74,17 @@ fun OnboardingScreen(onDone: () -> Unit) {
                 Modifier.fillMaxSize().padding(horizontal = 28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                // hiệu ứng thị sai: hình minh họa trượt chậm hơn chữ khi vuốt trang
+                val off = (pager.currentPage - page) + pager.currentPageOffsetFraction
+                Box(
+                    Modifier.weight(1f).fillMaxWidth().graphicsLayer {
+                        translationX = off * size.width * 0.45f
+                        val k = 1f - kotlin.math.abs(off).coerceIn(0f, 1f) * 0.15f
+                        scaleX = k; scaleY = k
+                        alpha = 1f - kotlin.math.abs(off).coerceIn(0f, 1f) * 0.6f
+                    },
+                    contentAlignment = Alignment.Center,
+                ) {
                     when (page) {
                         0 -> SleeveHero("onb-albums", "Bộ sưu tập", "Album", spinning = true, onPlay = {}, modifier = Modifier.padding(horizontal = 12.dp))
                         1 -> WebIllustration()
@@ -97,14 +108,16 @@ fun OnboardingScreen(onDone: () -> Unit) {
         val last = pager.currentPage == pages.lastIndex
         Row(
             Modifier.padding(horizontal = 24.dp).padding(bottom = 16.dp).fillMaxWidth().height(60.dp)
-                .clip(RoundedCornerShape(30.dp)).background(VG.Ink)
-                .clickable {
+                .bounceClick(scaleDown = 0.95f) {
                     if (last) onDone() else scope.launch { pager.animateScrollToPage(pager.currentPage + 1) }
-                },
+                }
+                .clip(RoundedCornerShape(30.dp)).background(VG.Ink),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(if (last) "Bắt đầu nghe" else "Tiếp tục", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+            androidx.compose.animation.AnimatedContent(last, label = "cta") { l ->
+                Text(if (l) "Bắt đầu nghe" else "Tiếp tục", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+            }
             Spacer(Modifier.width(12.dp))
             Icon(Icons.Rounded.ArrowForward, null, tint = Color.White)
         }

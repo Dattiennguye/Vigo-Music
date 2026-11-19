@@ -43,7 +43,7 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         Library.init(this)
-        val player = ExoPlayer.Builder(this)
+        val player = ExoPlayer.Builder(this, LevelRenderersFactory(this))
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)

@@ -238,11 +238,11 @@ fun BrowserScreen(holder: WebHolder, bottomPadding: Dp, toast: (String) -> Unit)
                     )
                 }
                 if (input.isNotEmpty()) {
-                    IconButton(onClick = { input = "" }) { Icon(Icons.Rounded.Close, "Xóa", tint = VG.Gray) }
+                    BounceIconButton(onClick = { input = "" }) { Icon(Icons.Rounded.Close, "Xóa", tint = VG.Gray) }
                 }
                 Box(
-                    Modifier.size(40.dp).clip(CircleShape).background(VG.Ink)
-                        .clickable { holder.open(input, addMp3); input = ""; focus.clearFocus() },
+                    Modifier.size(40.dp).bounceClick { holder.open(input, addMp3); input = ""; focus.clearFocus() }
+                        .clip(CircleShape).background(VG.Ink),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Rounded.Search, "Tìm", tint = Color.White, modifier = Modifier.size(20.dp)) }
             }
@@ -363,7 +363,7 @@ private fun SlideUpPanel(visible: Boolean, modifier: Modifier, content: @Composa
 @Composable
 private fun Chip(text: String, selected: Boolean, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, onClick: () -> Unit) {
     Row(
-        Modifier.clip(CircleShape).background(if (selected) VG.Ink else VG.Card).clickable { onClick() }
+        Modifier.bounceClick(scaleDown = 0.92f) { onClick() }.clip(CircleShape).background(if (selected) VG.Ink else VG.Card)
             .padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -377,7 +377,7 @@ private fun Chip(text: String, selected: Boolean, icon: androidx.compose.ui.grap
 
 @Composable
 private fun SmallIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, enabled: Boolean, onClick: () -> Unit) {
-    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(38.dp)) {
+    BounceIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(38.dp)) {
         Icon(icon, desc, tint = if (enabled) VG.Ink else VG.Line, modifier = Modifier.size(22.dp))
     }
 }
@@ -442,7 +442,7 @@ private fun DownloadsPanel(bottomPadding: Dp, onClose: () -> Unit) {
             if (tasks.any { it.state != DlState.Running }) {
                 TextButton(onClick = { Downloader.clearFinished() }) { Text("Dọn", color = VG.Peach) }
             }
-            IconButton(onClick = onClose, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Close, "Đóng", tint = VG.Gray) }
+            BounceIconButton(onClick = onClose, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Close, "Đóng", tint = VG.Gray) }
         }
         if (tasks.isEmpty()) {
             Text("Chưa có lượt tải nào.", style = VG.Body, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(20.dp))
@@ -474,9 +474,9 @@ private fun DownloadsPanel(bottomPadding: Dp, onClose: () -> Unit) {
                         }
                     }
                     when (t.state) {
-                        DlState.Running -> IconButton(onClick = { Downloader.cancel(t.id) }) { Icon(Icons.Rounded.Close, "Hủy", tint = VG.Gray) }
-                        DlState.Done -> IconButton(onClick = { t.trackId?.let { PlayerHub.playIds(listOf(it)) } }) { Icon(Icons.Rounded.PlayArrow, "Phát", tint = VG.Ink) }
-                        DlState.Failed -> IconButton(onClick = { Downloader.dismiss(t.id) }) { Icon(Icons.Rounded.Close, "Bỏ", tint = VG.Gray) }
+                        DlState.Running -> BounceIconButton(onClick = { Downloader.cancel(t.id) }) { Icon(Icons.Rounded.Close, "Hủy", tint = VG.Gray) }
+                        DlState.Done -> BounceIconButton(onClick = { t.trackId?.let { PlayerHub.playIds(listOf(it)) } }) { Icon(Icons.Rounded.PlayArrow, "Phát", tint = VG.Ink) }
+                        DlState.Failed -> BounceIconButton(onClick = { Downloader.dismiss(t.id) }) { Icon(Icons.Rounded.Close, "Bỏ", tint = VG.Gray) }
                     }
                 }
             }

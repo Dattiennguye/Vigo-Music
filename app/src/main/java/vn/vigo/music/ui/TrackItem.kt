@@ -35,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +60,7 @@ fun TrackItem(
     onClick: () -> Unit,
     toast: (String) -> Unit,
     removeFromPlaylistId: String? = null,
+    frame: State<FloatArray>? = null,
 ) {
     var menu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
@@ -74,9 +76,14 @@ fun TrackItem(
     ) {
         Box(contentAlignment = Alignment.Center) {
             Artwork(track, Modifier.size(54.dp), corner = 14.dp, maxPx = 160)
-            if (isCurrent) {
+            androidx.compose.animation.AnimatedVisibility(
+                isCurrent,
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.6f),
+                exit = androidx.compose.animation.fadeOut(),
+            ) {
                 Box(Modifier.size(54.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.35f)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.GraphicEq, null, tint = Color.White)
+                    if (frame != null) EqualizerBars(frame, Modifier.size(20.dp))
+                    else Icon(Icons.Rounded.GraphicEq, null, tint = Color.White)
                 }
             }
         }
@@ -91,15 +98,9 @@ fun TrackItem(
                 style = VG.Small, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
-        IconButton(onClick = { Library.toggleFavorite(track.id) }) {
-            Icon(
-                if (isFav) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                if (isFav) "Bỏ yêu thích" else "Yêu thích",
-                tint = if (isFav) VG.Peach else VG.Gray,
-            )
-        }
+        HeartButton(isFav, onToggle = { Library.toggleFavorite(track.id) })
         Box {
-            IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "Thêm", tint = VG.Gray) }
+            BounceIconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "Thêm", tint = VG.Gray) }
             DropdownMenu(menu, onDismissRequest = { menu = false }, containerColor = VG.Card) {
                 DropdownMenuItem(
                     text = { Text("Phát tiếp theo") }, leadingIcon = { Icon(Icons.Rounded.SkipNext, null) },
@@ -166,6 +167,7 @@ fun TrackItem(
             confirmButton = {
                 TextButton(onClick = {
                     PlayerHub.removeEverywhere(track.id)
+                    vn.vigo.music.data.LyricsRepo.delete(track.id)
                     Library.delete(track.id)
                     deleting = false
                     toast("Đã xóa")

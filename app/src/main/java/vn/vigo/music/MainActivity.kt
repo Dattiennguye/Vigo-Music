@@ -8,6 +8,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import vn.vigo.music.ui.IntroOverlay
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,6 +31,11 @@ import vn.vigo.music.ui.OnboardingScreen
 import vn.vigo.music.ui.VGTheme
 
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        /** Hiệu ứng mở app chỉ chạy một lần mỗi lần khởi động. */
+        private var introPlayed = false
+    }
 
     /** File nhạc được mở/chia sẻ từ app khác, chờ nhập vào thư viện. */
     val incoming = MutableStateFlow<List<Uri>>(emptyList())
@@ -38,13 +54,30 @@ class MainActivity : ComponentActivity() {
         setContent {
             VGTheme {
                 var onboarded by remember { mutableStateOf(prefs.getBoolean("onboarded", false)) }
-                if (!onboarded) {
-                    OnboardingScreen(onDone = {
-                        prefs.edit().putBoolean("onboarded", true).apply()
-                        onboarded = true
-                    })
-                } else {
-                    MainScreen(incoming)
+                var showIntro by remember { mutableStateOf(!introPlayed) }
+                Box(Modifier.fillMaxSize()) {
+                    AnimatedContent(
+                        onboarded,
+                        transitionSpec = {
+                            (fadeIn(tween(450)) + scaleIn(tween(450), initialScale = 1.06f)) togetherWith
+                                (fadeOut(tween(300)) + scaleOut(tween(300), targetScale = 0.94f))
+                        },
+                        label = "root",
+                    ) { done ->
+                        if (!done) {
+                            OnboardingScreen(onDone = {
+                                prefs.edit().putBoolean("onboarded", true).apply()
+                                onboarded = true
+                            })
+                        } else {
+                            MainScreen(incoming)
+                        }
+                    }
+                    if (showIntro) {
+                        IntroOverlay(onFinished = {
+                            if (showIntro) { showIntro = false; introPlayed = true }
+                        })
+                    }
                 }
             }
         }

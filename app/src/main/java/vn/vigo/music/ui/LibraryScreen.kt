@@ -69,6 +69,7 @@ fun LibraryScreen(
     val tracks by Library.tracks.collectAsState()
     val favs by Library.favorites.collectAsState()
     val ps by PlayerHub.state.collectAsState()
+    val frame = rememberAudioFrame(ps.isPlaying)
     var filter by rememberSaveable { mutableStateOf(Filter.All) }
     var query by rememberSaveable { mutableStateOf("") }
 
@@ -96,7 +97,7 @@ fun LibraryScreen(
                     Text("${tracks.size} bài hát", style = VG.Small)
                 }
                 Box(
-                    Modifier.size(46.dp).clip(CircleShape).background(VG.Ink).clickable { onImport() },
+                    Modifier.size(46.dp).bounceClick { onImport() }.clip(CircleShape).background(VG.Ink),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Rounded.Add, "Nhập nhạc", tint = Color.White) }
             }
@@ -116,6 +117,8 @@ fun LibraryScreen(
                 spinning = ps.isPlaying,
                 art = art,
                 labelArt = art,
+                frame = frame,
+                liftOnPlay = true,
                 playing = ps.isPlaying && current != null,
                 onPlay = {
                     if (current != null) PlayerHub.togglePlay()
@@ -132,13 +135,15 @@ fun LibraryScreen(
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(Filter.entries.toList()) { f ->
                     val sel = f == filter
+                    val bg by androidx.compose.animation.animateColorAsState(if (sel) VG.Ink else VG.Card, label = "chipbg")
+                    val fg by androidx.compose.animation.animateColorAsState(if (sel) Color.White else VG.Ink, label = "chipfg")
                     Text(
                         f.label,
-                        color = if (sel) Color.White else VG.Ink,
+                        color = fg,
                         fontSize = 14.sp, fontWeight = FontWeight.Medium,
-                        modifier = Modifier.clip(CircleShape)
-                            .background(if (sel) VG.Ink else VG.Card)
-                            .clickable { filter = f }
+                        modifier = Modifier.bounceClick(scaleDown = 0.92f) { filter = f }
+                            .clip(CircleShape)
+                            .background(bg)
                             .padding(horizontal = 16.dp, vertical = 9.dp),
                     )
                 }
@@ -148,7 +153,7 @@ fun LibraryScreen(
                 Text("${shown.size} bài", style = VG.Small, modifier = Modifier.weight(1f))
                 if (shown.isNotEmpty()) {
                     Row(
-                        Modifier.clip(CircleShape).clickable { PlayerHub.playIds(shown.map { it.id }.shuffled(), 0) }
+                        Modifier.bounceClick { PlayerHub.playIds(shown.map { it.id }.shuffled(), 0) }.clip(CircleShape)
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -171,6 +176,7 @@ fun LibraryScreen(
         }
 
         items(shown, key = { it.id }) { t ->
+            Box(Modifier.animateItem()) {
             TrackItem(
                 track = t,
                 isCurrent = t.id == ps.currentId,
@@ -180,7 +186,9 @@ fun LibraryScreen(
                     else PlayerHub.playIds(shown.map { it.id }, shown.indexOf(t))
                 },
                 toast = toast,
+                frame = frame,
             )
+            }
         }
     }
 }
@@ -226,8 +234,8 @@ private fun EmptyLibrary(onImport: () -> Unit, onOpenWeb: () -> Unit) {
 @Composable
 fun BigButton(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, dark: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Row(
-        modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(28.dp))
-            .background(if (dark) VG.Ink else VG.Card).clickable { onClick() },
+        modifier.fillMaxWidth().height(56.dp).bounceClick(scaleDown = 0.95f) { onClick() }
+            .clip(RoundedCornerShape(28.dp)).background(if (dark) VG.Ink else VG.Card),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = if (dark) Color.White else VG.Ink)

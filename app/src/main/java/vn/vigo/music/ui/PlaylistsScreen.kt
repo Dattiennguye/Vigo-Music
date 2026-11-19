@@ -39,6 +39,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -66,12 +67,21 @@ private const val FAV_ID = "__favorites__"
 @Composable
 fun PlaylistsScreen(bottomPadding: Dp, onOpenPlayer: () -> Unit, toast: (String) -> Unit) {
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
-    val id = openId
-    if (id != null) {
-        BackHandler { openId = null }
-        PlaylistDetail(id, bottomPadding, onBack = { openId = null }, onOpenPlayer = onOpenPlayer, toast = toast)
-    } else {
-        PlaylistList(bottomPadding, onOpen = { openId = it })
+    BackHandler(enabled = openId != null) { openId = null }
+    androidx.compose.animation.AnimatedContent(
+        openId,
+        transitionSpec = {
+            val forward = targetState != null
+            val d = if (forward) 1 else -1
+            (androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.spring(dampingRatio = 0.86f, stiffness = 320f)) { it * d } +
+                androidx.compose.animation.fadeIn()) togetherWith
+                (androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(260)) { -it * d / 3 } +
+                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)))
+        },
+        label = "pl",
+    ) { id ->
+        if (id != null) PlaylistDetail(id, bottomPadding, onBack = { openId = null }, onOpenPlayer = onOpenPlayer, toast = toast)
+        else PlaylistList(bottomPadding, onOpen = { openId = it })
     }
 }
 
@@ -95,7 +105,7 @@ private fun PlaylistList(bottomPadding: Dp, onOpen: (String) -> Unit) {
                     Text("${playlists.size} danh sách", style = VG.Small)
                 }
                 Box(
-                    Modifier.size(46.dp).clip(CircleShape).background(VG.Ink).clickable { creating = true },
+                    Modifier.size(46.dp).bounceClick { creating = true }.clip(CircleShape).background(VG.Ink),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Rounded.Add, "Tạo playlist", tint = Color.White) }
             }
@@ -111,6 +121,7 @@ private fun PlaylistList(bottomPadding: Dp, onOpen: (String) -> Unit) {
             )
         }
         items(playlists, key = { it.id }) { p ->
+            Box(Modifier.animateItem()) {
             PlaylistCard(
                 name = p.name,
                 count = p.trackIds.size,
@@ -119,6 +130,7 @@ private fun PlaylistList(bottomPadding: Dp, onOpen: (String) -> Unit) {
                 onClick = { onOpen(p.id) },
                 onAdd = { onOpen(p.id) },
             )
+            }
         }
         if (playlists.isEmpty()) {
             item {
@@ -148,10 +160,10 @@ private fun PlaylistCard(
 ) {
     Column(
         Modifier.fillMaxWidth()
+            .bounceClick(scaleDown = 0.97f) { onClick() }
             .shadow(12.dp, RoundedCornerShape(26.dp), ambientColor = VG.Peach.copy(alpha = 0.35f), spotColor = VG.Peach.copy(alpha = 0.25f))
             .background(VG.Card, RoundedCornerShape(26.dp))
             .clip(RoundedCornerShape(26.dp))
-            .clickable { onClick() }
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -186,6 +198,7 @@ private fun PlaylistDetail(id: String, bottomPadding: Dp, onBack: () -> Unit, on
     val tracks by Library.tracks.collectAsState()
     val favs by Library.favorites.collectAsState()
     val ps by PlayerHub.state.collectAsState()
+    val frame = rememberAudioFrame(ps.isPlaying)
     val isFav = id == FAV_ID
     val playlist = playlists.firstOrNull { it.id == id }
     if (!isFav && playlist == null) {
@@ -206,11 +219,11 @@ private fun PlaylistDetail(id: String, bottomPadding: Dp, onBack: () -> Unit, on
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, "Quay lại", tint = VG.Ink) }
+                BounceIconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, "Quay lại", tint = VG.Ink) }
                 Spacer(Modifier.weight(1f))
                 if (!isFav) {
                     Box {
-                        IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "Thêm", tint = VG.Ink) }
+                        BounceIconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "Thêm", tint = VG.Ink) }
                         DropdownMenu(menu, { menu = false }, containerColor = VG.Card) {
                             DropdownMenuItem(text = { Text("Thêm bài hát") }, leadingIcon = { Icon(Icons.Rounded.Add, null) }, onClick = { menu = false; adding = true })
                             DropdownMenuItem(text = { Text("Đổi tên") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { menu = false; renaming = true })
@@ -248,6 +261,7 @@ private fun PlaylistDetail(id: String, bottomPadding: Dp, onBack: () -> Unit, on
             }
         }
         items(list, key = { it.id }) { t ->
+            Box(Modifier.animateItem()) {
             TrackItem(
                 track = t,
                 isCurrent = t.id == ps.currentId,
@@ -255,7 +269,9 @@ private fun PlaylistDetail(id: String, bottomPadding: Dp, onBack: () -> Unit, on
                 onClick = { PlayerHub.playIds(list.map { it.id }, list.indexOf(t)) },
                 toast = toast,
                 removeFromPlaylistId = if (isFav) null else id,
+                frame = frame,
             )
+            }
         }
     }
 

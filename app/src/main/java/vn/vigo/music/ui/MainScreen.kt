@@ -7,7 +7,19 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -88,6 +100,7 @@ fun MainScreen(incoming: MutableStateFlow<List<Uri>>) {
     val ps by PlayerHub.state.collectAsState()
     val tracks by Library.tracks.collectAsState()
     val current = ps.currentId?.let { id -> tracks.firstOrNull { it.id == id } }
+    val miniFrame = rememberAudioFrame(ps.isPlaying && !playerOpen)
 
     // Xin quyền thông báo (Android 13+) để hiện điều khiển phát nhạc
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -142,7 +155,16 @@ fun MainScreen(incoming: MutableStateFlow<List<Uri>>) {
 
     Box(Modifier.fillMaxSize().background(VG.Cream)) {
         Box(Modifier.fillMaxSize().statusBarsPadding()) {
-            Crossfade(tab, animationSpec = tween(220), label = "tab") { t ->
+            AnimatedContent(
+                tab,
+                transitionSpec = {
+                    val dir = if (targetState > initialState) 1 else -1
+                    (slideInHorizontally(spring(dampingRatio = 0.86f, stiffness = 340f)) { it * dir / 4 } +
+                        fadeIn(tween(240, delayMillis = 40)) + scaleIn(tween(300), initialScale = 0.97f)) togetherWith
+                        (slideOutHorizontally(tween(220)) { -it * dir / 5 } + fadeOut(tween(160)))
+                },
+                label = "tab",
+            ) { t ->
                 when (t) {
                     0 -> LibraryScreen(bottomPad, onImport = onImport, onOpenWeb = { tab = 1 }, onOpenPlayer = { playerOpen = true }, toast = toast)
                     1 -> BrowserScreen(web, bottomPad, toast)
@@ -170,7 +192,11 @@ fun MainScreen(incoming: MutableStateFlow<List<Uri>>) {
                     Text("Đang nhập $i/$n…", color = Color.White, fontSize = 14.sp)
                 }
             }
-            AnimatedVisibility(current != null, enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut()) {
+            AnimatedVisibility(
+                current != null,
+                enter = fadeIn() + slideInVertically(spring(dampingRatio = 0.7f, stiffness = 300f)) { it } + scaleIn(initialScale = 0.9f),
+                exit = fadeOut() + slideOutVertically { it / 2 },
+            ) {
                 current?.let { t ->
                     MiniPlayer(
                         t, ps.isPlaying, ps.positionMs, ps.durationMs,
@@ -178,6 +204,7 @@ fun MainScreen(incoming: MutableStateFlow<List<Uri>>) {
                         onOpen = { playerOpen = true },
                         onSeek = { f -> if (ps.durationMs > 0) PlayerHub.seekTo((f * ps.durationMs).toLong()) },
                         modifier = Modifier.padding(bottom = 10.dp),
+                        frame = miniFrame,
                     )
                 }
             }
@@ -193,10 +220,10 @@ fun MainScreen(incoming: MutableStateFlow<List<Uri>>) {
 
         AnimatedVisibility(
             playerOpen && current != null,
-            enter = slideInVertically(tween(320)) { it },
-            exit = slideOutVertically(tween(260)) { it },
+            enter = slideInVertically(spring(dampingRatio = 0.86f, stiffness = 320f)) { it } + fadeIn(tween(200)),
+            exit = slideOutVertically(tween(280)) { it } + fadeOut(tween(250)),
         ) {
-            PlayerScreen(onClose = { playerOpen = false })
+            PlayerScreen(onClose = { playerOpen = false }, toast = toast)
         }
     }
 }
@@ -208,27 +235,36 @@ private fun NavBar(selected: Int, onSelect: (Int) -> Unit) {
         "Tìm & tải" to Icons.Rounded.Language,
         "Playlist" to Icons.Rounded.QueueMusic,
     )
-    Row(
+    BoxWithConstraints(
         Modifier.fillMaxWidth().height(62.dp)
             .shadow(14.dp, RoundedCornerShape(31.dp), ambientColor = VG.Peach.copy(alpha = 0.3f), spotColor = VG.Peach.copy(alpha = 0.25f))
             .background(VG.Card, RoundedCornerShape(31.dp))
             .padding(6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        items.forEachIndexed { i, (label, icon) ->
-            val sel = i == selected
-            Row(
-                Modifier.weight(1f).height(50.dp).clip(RoundedCornerShape(25.dp))
-                    .background(if (sel) VG.Ink else Color.Transparent)
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onSelect(i) },
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(icon, label, tint = if (sel) Color.White else VG.Gray, modifier = Modifier.size(22.dp))
-                if (sel) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        val w = maxWidth / items.size
+        // ô chọn màu đậm trượt theo tab, có độ nảy
+        val x by animateDpAsState(w * selected, spring(dampingRatio = 0.68f, stiffness = 380f), label = "pill")
+        Box(Modifier.offset(x = x).width(w).fillMaxHeight().clip(RoundedCornerShape(25.dp)).background(VG.Ink))
+        Row(Modifier.fillMaxSize()) {
+            items.forEachIndexed { i, (label, icon) ->
+                val sel = i == selected
+                val tint by animateColorAsState(if (sel) Color.White else VG.Gray, tween(220), label = "navc")
+                Row(
+                    Modifier.weight(1f).fillMaxHeight().bounceClick(scaleDown = 0.9f) { onSelect(i) },
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(icon, label, tint = tint, modifier = Modifier.size(22.dp))
+                    AnimatedVisibility(
+                        sel,
+                        enter = expandHorizontally(spring(dampingRatio = 0.8f, stiffness = 400f)) + fadeIn(tween(200, delayMillis = 60)),
+                        exit = shrinkHorizontally(tween(160)) + fadeOut(tween(100)),
+                    ) {
+                        Row {
+                            Spacer(Modifier.width(6.dp))
+                            Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        }
+                    }
                 }
             }
         }

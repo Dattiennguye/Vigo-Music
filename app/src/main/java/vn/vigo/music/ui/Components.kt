@@ -1,6 +1,17 @@
 package vn.vigo.music.ui
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.runtime.State
+import androidx.compose.ui.platform.LocalDensity
+import vn.vigo.music.player.AudioLevels
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -138,7 +149,7 @@ fun Artwork(track: Track?, modifier: Modifier = Modifier, corner: Dp = 14.dp, ma
 // ---------- Đĩa than ----------
 
 @Composable
-fun Vinyl(spinning: Boolean, modifier: Modifier = Modifier, art: ImageBitmap? = null) {
+fun Vinyl(spinning: Boolean, modifier: Modifier = Modifier, art: ImageBitmap? = null, frame: State<FloatArray>? = null) {
     val rotation = remember { Animatable(0f) }
     LaunchedEffect(spinning) {
         if (spinning) {
@@ -149,7 +160,28 @@ fun Vinyl(spinning: Boolean, modifier: Modifier = Modifier, art: ImageBitmap? = 
         }
     }
     Box(modifier) {
-        Canvas(Modifier.fillMaxSize().graphicsLayer { rotationZ = rotation.value }) {
+        if (frame != null) {
+            // quầng sáng phía sau đĩa, phập phồng theo âm lượng & bass thật
+            Canvas(Modifier.fillMaxSize()) {
+                val f = frame.value
+                val r = size.minDimension / 2f
+                val rr = r * (1.04f + f.bass * 0.16f)
+                drawCircle(
+                    Brush.radialGradient(
+                        listOf(VG.Peach.copy(alpha = 0.10f + f.level * 0.45f), Color.Transparent),
+                        center, rr * 1.18f,
+                    ),
+                    rr * 1.18f, center,
+                )
+            }
+        }
+        Canvas(
+            Modifier.fillMaxSize().graphicsLayer {
+                rotationZ = rotation.value
+                val s = 1f + (frame?.value?.bass ?: 0f) * 0.035f
+                scaleX = s; scaleY = s
+            }
+        ) {
             val r = size.minDimension / 2f
             val c = center
             drawCircle(VG.Vinyl, r, c)
@@ -237,16 +269,32 @@ fun SleeveHero(
     showHeart: Boolean = true,
     onPlay: (() -> Unit)? = null,
     playing: Boolean = false,
+    frame: State<FloatArray>? = null,
+    liftOnPlay: Boolean = false,
 ) {
+    // Đĩa trồi lên khỏi bìa khi đang phát, thụt vào khi dừng
+    val lift by animateFloatAsState(
+        if (liftOnPlay && spinning) 1f else 0f,
+        spring(dampingRatio = 0.55f, stiffness = 120f),
+        label = "lift",
+    )
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val w = maxWidth
         val vinylSize = w * 0.80f
         val sleeveH = w * 0.56f
-        Box(Modifier.fillMaxWidth().height(vinylSize * 0.52f + sleeveH)) {
+        val liftSpace = if (liftOnPlay) vinylSize * 0.16f else 0.dp
+        val density = LocalDensity.current
+        val liftPx = with(density) { liftSpace.toPx() }
+        Box(Modifier.fillMaxWidth().height(liftSpace + vinylSize * 0.52f + sleeveH)) {
+            Box(
+                Modifier.align(Alignment.TopCenter).size(vinylSize)
+                    .offset { IntOffset(0, (liftPx * (1f - lift)).roundToInt()) }
+            ) {
             Vinyl(
                 spinning,
-                Modifier.size(vinylSize).align(Alignment.TopCenter),
+                Modifier.size(vinylSize),
                 art = labelArt,
+                frame = frame,
             )
             if (showHeart) {
                 Box(
@@ -261,6 +309,7 @@ fun SleeveHero(
                 ) {
                     Icon(Icons.Rounded.FavoriteBorder, null, tint = VG.Ink, modifier = Modifier.size(24.dp))
                 }
+            }
             }
             Box(
                 Modifier
@@ -291,11 +340,10 @@ fun SleeveHero(
                     }
                     if (onPlay != null) {
                         Box(
-                            Modifier.size(48.dp).shadow(8.dp, CircleShape).background(Color.White, CircleShape)
-                                .clip(CircleShape).clickable { onPlay() },
+                            Modifier.size(48.dp).bounceClick { onPlay() }.shadow(8.dp, CircleShape).background(Color.White, CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "Phát", tint = VG.Ink)
+                            PlayPauseIcon(playing, VG.Ink, 24.dp)
                         }
                     }
                 }
@@ -326,6 +374,7 @@ fun WaveformSeek(
     active: Color = VG.Peach,
     inactive: Color = VG.PeachSoft,
     onSeek: ((Float) -> Unit)? = null,
+    frame: State<FloatArray>? = null,
 ) {
     val heights = remember(seed, bars) { waveHeights(seed, bars) }
     var dragging by remember { mutableStateOf<Float?>(null) }
@@ -345,7 +394,9 @@ fun WaveformSeek(
     Canvas(modifier.then(input)) {
         val gap = size.width / bars
         val stroke = (gap * 0.45f).coerceAtMost(4.dp.toPx())
-        heights.forEachIndexed { i, hh ->
+        val f = frame?.value
+        heights.forEachIndexed { i, h0 ->
+            val hh = if (f == null) h0 else (h0 * (0.6f + 0.75f * f.band(i * AudioLevels.BANDS / bars))).coerceIn(0.08f, 1f)
             val x = gap * (i + 0.5f)
             val half = size.height / 2f * hh
             val played = (i + 0.5f) / bars <= shown
@@ -370,6 +421,7 @@ fun MiniPlayer(
     onOpen: () -> Unit,
     onSeek: (Float) -> Unit,
     modifier: Modifier = Modifier,
+    frame: State<FloatArray>? = null,
 ) {
     val progress = if (durationMs > 0) positionMs.toFloat() / durationMs else 0f
     Row(
@@ -383,16 +435,25 @@ fun MiniPlayer(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(
-            Modifier.size(44.dp).clip(CircleShape).background(VG.Ink).clickable { onToggle() },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (isPlaying) "Tạm dừng" else "Phát", tint = Color.White)
+        Box(Modifier.size(44.dp).bounceClick { onToggle() }, contentAlignment = Alignment.Center) {
+            if (frame != null) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val l = frame.value.level
+                    drawCircle(VG.Peach.copy(alpha = 0.35f * l), size.minDimension / 2f * (1f + l * 0.35f))
+                }
+            }
+            Box(Modifier.fillMaxSize().clip(CircleShape).background(VG.Ink), contentAlignment = Alignment.Center) {
+                PlayPauseIcon(isPlaying, Color.White, 24.dp)
+            }
         }
         Column(Modifier.weight(1f)) {
-            Text(track.title, style = VG.Title.copy(fontSize = 14.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            AnimatedContent(
+                track.title,
+                transitionSpec = { (slideInVertically { it } + fadeIn()) togetherWith (slideOutVertically { -it } + fadeOut()) },
+                label = "miniTitle",
+            ) { t -> Text(t, style = VG.Title.copy(fontSize = 14.sp), maxLines = 1, overflow = TextOverflow.Ellipsis) }
             Spacer(Modifier.height(2.dp))
-            WaveformSeek(track.id, progress, Modifier.fillMaxWidth().height(22.dp), bars = 32, onSeek = onSeek)
+            WaveformSeek(track.id, progress, Modifier.fillMaxWidth().height(22.dp), bars = 32, onSeek = onSeek, frame = frame)
         }
         Text(
             formatTime((durationMs - positionMs).coerceAtLeast(0)),
