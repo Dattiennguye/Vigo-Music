@@ -45,6 +45,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
@@ -85,6 +87,8 @@ fun PlayerScreen(onClose: () -> Unit, toast: (String) -> Unit = {}) {
     val favs by Library.favorites.collectAsState()
     val track = ps.currentId?.let { id -> tracks.firstOrNull { it.id == id } }
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var soundOpen by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    val sleep by PlayerHub.sleep.collectAsState()
 
     LaunchedEffect(track == null) { if (track == null) onClose() }
     if (track == null) return
@@ -105,7 +109,26 @@ fun PlayerScreen(onClose: () -> Unit, toast: (String) -> Unit = {}) {
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     SegmentedTabs(tab) { tab = it }
                 }
-                Spacer(Modifier.width(48.dp))
+                BounceIconButton(onClick = { soundOpen = true }) {
+                    Box {
+                        Icon(Icons.Rounded.Tune, "Âm thanh", tint = VG.Ink)
+                        if (sleep.active) {
+                            Box(
+                                Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp).size(14.dp)
+                                    .clip(CircleShape).background(VG.Peach),
+                                contentAlignment = Alignment.Center,
+                            ) { Icon(Icons.Rounded.Bedtime, null, tint = Color.White, modifier = Modifier.size(9.dp)) }
+                        }
+                    }
+                }
+            }
+            if (sleep.active) {
+                val rem = rememberSleepRemaining(sleep)
+                Text(
+                    if (sleep.endOfTrack) "☾ Dừng sau bài này" else "☾ Tắt nhạc sau ${formatTime(rem)}",
+                    style = VG.Small.copy(color = VG.Peach, fontWeight = FontWeight.SemiBold),
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                )
             }
 
             AnimatedContent(
@@ -185,6 +208,8 @@ fun PlayerScreen(onClose: () -> Unit, toast: (String) -> Unit = {}) {
             Spacer(Modifier.height(16.dp))
             Controls(ps.isPlaying, ps.shuffle, ps.repeatMode, frame)
         }
+        BackHandler(enabled = soundOpen) { soundOpen = false }
+        SoundPanel(soundOpen, onClose = { soundOpen = false })
     }
 }
 

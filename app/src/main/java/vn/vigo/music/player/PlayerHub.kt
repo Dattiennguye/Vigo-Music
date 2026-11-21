@@ -29,8 +29,24 @@ data class PlayState(
     val error: String? = null,
 )
 
+/** Hẹn giờ tắt: [endAt] là thời điểm dừng (ms, 0 = không hẹn), hoặc dừng khi hết bài đang phát. */
+data class SleepTimer(val endAt: Long = 0L, val endOfTrack: Boolean = false, val totalMs: Long = 0L) {
+    val active get() = endAt > 0L || endOfTrack
+}
+
 /** Cầu nối giữa giao diện và PlaybackService (dùng trên luồng chính). */
 object PlayerHub {
+    private const val SLEEP_FADE_MS = 30_000L
+    private var prefs: android.content.SharedPreferences? = null
+
+    private val _sleep = MutableStateFlow(SleepTimer())
+    val sleep: StateFlow<SleepTimer> = _sleep.asStateFlow()
+
+    /** Chuyển bài mượt: số giây nhỏ dần cuối bài & lớn dần đầu bài sau (0 = tắt). */
+    private val _crossfadeSec = MutableStateFlow(0)
+    val crossfadeSec: StateFlow<Int> = _crossfadeSec.asStateFlow()
+    private var fadeInStart = 0L
+
     private val scope = MainScope()
     private var controller: MediaController? = null
     private var connecting: Job? = null
@@ -43,6 +59,10 @@ object PlayerHub {
     fun connect(context: Context) {
         if (controller != null || connecting?.isActive == true) return
         val app = context.applicationContext
+        if (prefs == null) {
+            prefs = app.getSharedPreferences("vigo", Context.MODE_PRIVATE)
+            _crossfadeSec.value = prefs?.getInt("crossfade", 0) ?: 0
+        }
         connecting = scope.launch {
             try {
                 val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
@@ -50,6 +70,7 @@ object PlayerHub {
                 controller = c
                 c.addListener(object : Player.Listener {
                     override fun onEvents(player: Player, events: Player.Events) = refresh()
+                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) = onTransition(reason)
                     override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                         _state.value = _state.value.copy(error = "Không phát được bài này")
                     }
@@ -81,7 +102,83 @@ object PlayerHub {
             queue = ids,
             index = c.currentMediaItemIndex,
         )
-        if (c.isPlaying) startTicker() else ticker?.cancel()
+        val sl = _sleep.value
+        if (sl.endAt > 0 && System.currentTimeMillis() >= sl.endAt) _sleep.value = SleepTimer()
+        if (c.isPlaying) startTicker() else {
+            ticker?.cancel()
+            if (c.volume < 1f) c.volume = 1f
+            fadeInStart = 0L
+        }
+    }
+
+    private fun onTransition(reason: Int) {
+        val c = controller ?: return
+        if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+            if (_sleep.value.endOfTrack) {
+                // Hẹn giờ "hết bài này": dừng ngay khi sang bài mới
+                c.pause(); c.seekTo(0)
+                _sleep.value = SleepTimer()
+                c.volume = 1f
+                return
+            }
+            if (_crossfadeSec.value > 0) {
+                fadeInStart = System.currentTimeMillis()
+                c.volume = 0.05f
+                return
+            }
+        }
+        fadeInStart = 0L
+        c.volume = 1f
+    }
+
+    /** Âm lượng theo hẹn giờ (nhỏ dần 30 giây cuối) và chuyển bài mượt; dừng khi hết giờ. */
+    private fun updateVolume(c: MediaController) {
+        val now = System.currentTimeMillis()
+        var v = 1f
+        val sl = _sleep.value
+        if (sl.endAt > 0) {
+            val rem = sl.endAt - now
+            if (rem <= 0) {
+                c.pause(); c.volume = 1f
+                _sleep.value = SleepTimer()
+                return
+            }
+            v = minOf(v, (rem.toFloat() / SLEEP_FADE_MS).coerceIn(0f, 1f))
+        }
+        val xf = _crossfadeSec.value * 1000L
+        if (xf > 0) {
+            val dur = c.duration
+            if (dur > 0 && c.hasNextMediaItem() && c.repeatMode != Player.REPEAT_MODE_ONE && !_sleep.value.endOfTrack) {
+                val left = dur - c.currentPosition
+                if (left < xf) v = minOf(v, (left.toFloat() / xf).coerceIn(0.02f, 1f))
+            }
+            if (fadeInStart > 0) {
+                val p = (now - fadeInStart).toFloat() / xf
+                if (p >= 1f) fadeInStart = 0L else v = minOf(v, p.coerceIn(0.05f, 1f))
+            }
+        }
+        if (kotlin.math.abs(c.volume - v) > 0.01f) c.volume = v
+    }
+
+    fun setSleepMinutes(min: Int) {
+        _sleep.value = if (min <= 0) SleepTimer() else {
+            val ms = min * 60_000L
+            SleepTimer(endAt = System.currentTimeMillis() + ms, totalMs = ms)
+        }
+        controller?.let { if (!_sleep.value.active) it.volume = 1f }
+    }
+
+    fun setSleepEndOfTrack() { _sleep.value = SleepTimer(endOfTrack = true) }
+
+    fun cancelSleep() {
+        _sleep.value = SleepTimer()
+        controller?.volume = 1f
+    }
+
+    fun setCrossfade(sec: Int) {
+        _crossfadeSec.value = sec.coerceIn(0, 12)
+        prefs?.edit()?.putInt("crossfade", _crossfadeSec.value)?.apply()
+        if (sec == 0) { fadeInStart = 0L; controller?.volume = 1f }
     }
 
     private fun startTicker() {
@@ -93,8 +190,9 @@ object PlayerHub {
                         positionMs = c.currentPosition.coerceAtLeast(0),
                         durationMs = c.duration.takeIf { it > 0 } ?: _state.value.durationMs,
                     )
+                    updateVolume(c)
                 }
-                delay(250)
+                delay(100)
             }
         }
     }

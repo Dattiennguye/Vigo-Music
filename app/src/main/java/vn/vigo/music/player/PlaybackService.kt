@@ -55,6 +55,13 @@ class PlaybackService : MediaSessionService() {
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
 
+        // Phiên âm thanh riêng để gắn bộ chỉnh âm (Equalizer / Bass)
+        val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+        val sessionId = am.generateAudioSessionId()
+        player.audioSessionId = sessionId
+        AudioFx.init(this)
+        AudioFx.attach(sessionId)
+
         // Video đã nhập chỉ phát tiếng, bỏ giải mã hình cho nhẹ máy
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
@@ -87,6 +94,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        AudioFx.release()
         session?.run {
             player.release()
             release()
