@@ -63,6 +63,10 @@ object LyricsRepo {
         cacheFile(id).delete(); missFile(id).delete()
     }
 
+    /** Lời đã lưu dạng chữ (bỏ dòng nguồn) để sửa tay. */
+    fun rawText(id: String): String? = cacheFile(id).takeIf { it.exists() }?.readLines()
+        ?.dropWhile { it.trim().startsWith("[source:") }?.joinToString("\n")
+
     private fun sourceOf(f: File): String =
         f.useLines { seq -> seq.firstOrNull()?.let { Regex("^\\[source:(.*)]$").find(it.trim())?.groupValues?.get(1) } } ?: "Đã lưu"
 
