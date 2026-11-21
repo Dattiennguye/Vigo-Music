@@ -94,7 +94,7 @@ fun PlayerScreen(onClose: () -> Unit, toast: (String) -> Unit = {}) {
     val art = rememberArt(track, 900)
     val progress = if (ps.durationMs > 0) ps.positionMs.toFloat() / ps.durationMs else 0f
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().blockTouchesBelow()) {
         PlayerBackdrop(track, frame, ps.isPlaying, Modifier.fillMaxSize())
 
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 22.dp)) {

@@ -433,6 +433,7 @@ private fun DownloadsPanel(bottomPadding: Dp, onClose: () -> Unit) {
     val tasks by Downloader.tasks.collectAsState()
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = bottomPadding + 8.dp)
+            .blockTouchesBelow()
             .shadow(24.dp, RoundedCornerShape(26.dp))
             .background(VG.Card, RoundedCornerShape(26.dp))
             .padding(16.dp)

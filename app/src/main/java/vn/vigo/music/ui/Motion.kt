@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -219,6 +220,18 @@ fun LiveSpectrum(frame: State<FloatArray>, modifier: Modifier = Modifier, color:
             val h = size.height * v
             val x = gap * (j + 0.5f) - bw / 2
             drawRoundRect(brush, Offset(x, (size.height - h) / 2), Size(bw, h), CornerRadius(bw / 2, bw / 2))
+        }
+    }
+}
+
+/**
+ * Chặn mọi thao tác chạm/vuốt lọt xuống lớp bên dưới (dùng cho màn phủ toàn màn hình, bảng nổi).
+ * Các nút bên trong vẫn nhận chạm bình thường vì chúng xử lý trước.
+ */
+fun Modifier.blockTouchesBelow(): Modifier = this.pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            awaitPointerEvent().changes.forEach { it.consume() }
         }
     }
 }

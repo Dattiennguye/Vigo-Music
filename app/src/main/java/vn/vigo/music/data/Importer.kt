@@ -52,7 +52,10 @@ object Importer {
                 raw
             }
             val frame = VideoAudio.frameOf(context, uri)
-            return@withContext finalize(id, file, name.substringBeforeLast('.'), "video", frame)
+            val base = name.substringBeforeLast('.')
+            val generic = base.all { it.isDigit() } || Regex("^(VID|video|vid|PXL|Screenrecorder|screen-?record)[_-]?.*", RegexOption.IGNORE_CASE).matches(base)
+            val title = if (generic) "Video " + java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale("vi")).format(java.util.Date()) else base
+            return@withContext finalize(id, file, title, "video", frame)
         }
         val out = File(Library.musicDir, "$id.$ext")
         cr.openInputStream(uri).use { input ->
