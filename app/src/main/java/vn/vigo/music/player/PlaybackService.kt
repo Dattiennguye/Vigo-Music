@@ -24,7 +24,7 @@ object MediaItems {
                 .setTitle(t.title)
                 .setArtist(t.artist)
                 .setAlbumTitle(t.album.ifBlank { null })
-                .setArtworkUri(if (t.hasArt) Uri.fromFile(Library.artFileOf(t.id)) else null)
+                .setArtworkUri(if (t.hasArt) Uri.fromFile(Library.artFileOf(t.id)).buildUpon().appendQueryParameter("v", t.artRev.toString()).build() else null)
                 .setIsPlayable(true)
                 .setIsBrowsable(false)
                 .build()
@@ -53,6 +53,11 @@ class PlaybackService : MediaSessionService() {
             )
             .setHandleAudioBecomingNoisy(true) // rút tai nghe thì tạm dừng
             .setWakeMode(C.WAKE_MODE_LOCAL)
+            .build()
+
+        // Video đã nhập chỉ phát tiếng, bỏ giải mã hình cho nhẹ máy
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
             .build()
 
         val launch = packageManager.getLaunchIntentForPackage(packageName) ?: Intent()

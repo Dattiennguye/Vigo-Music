@@ -18,6 +18,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Image
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -66,6 +68,18 @@ fun TrackItem(
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val coverPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) scope.launch {
+            val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                loadScaledBitmap(context, uri, 1024)?.let { Library.setArtwork(track.id, it); true } ?: false
+            }
+            if (ok) { PlayerHub.refreshMetadata(track.id); toast("Đã đổi ảnh bìa") } else toast("Không đọc được ảnh")
+        }
+    }
 
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
@@ -123,6 +137,17 @@ fun TrackItem(
                 DropdownMenuItem(
                     text = { Text("Đổi tên") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) },
                     onClick = { menu = false; renaming = true },
+                )
+                DropdownMenuItem(
+                    text = { Text("Đổi ảnh bìa") }, leadingIcon = { Icon(Icons.Rounded.Image, null) },
+                    onClick = {
+                        menu = false
+                        coverPicker.launch(
+                            androidx.activity.result.PickVisualMediaRequest(
+                                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                            )
+                        )
+                    },
                 )
                 DropdownMenuItem(
                     text = { Text("Xóa khỏi máy", color = Color(0xFFC0392B)) },
@@ -232,3 +257,29 @@ fun PlaylistPicker(onDismiss: () -> Unit, onPick: (id: String, name: String) -> 
         dismissButton = { TextButton(onClick = onDismiss) { Text("Hủy") } },
     )
 }
+
+/** Đọc ảnh từ máy, thu nhỏ cạnh dài về [maxSide] và xoay đúng chiều theo EXIF. */
+fun loadScaledBitmap(context: android.content.Context, uri: android.net.Uri, maxSide: Int): android.graphics.Bitmap? = try {
+    val cr = context.contentResolver
+    val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    cr.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+    var sample = 1
+    while (bounds.outWidth / (sample * 2) >= maxSide || bounds.outHeight / (sample * 2) >= maxSide) sample *= 2
+    val bmp = cr.openInputStream(uri)?.use {
+        android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+    }
+    val rotation = try {
+        cr.openInputStream(uri)?.use {
+            when (android.media.ExifInterface(it).getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1)) {
+                android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                android.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                android.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                else -> 0f
+            }
+        } ?: 0f
+    } catch (_: Exception) { 0f }
+    if (bmp != null && rotation != 0f) {
+        val m = android.graphics.Matrix().apply { postRotate(rotation) }
+        android.graphics.Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
+    } else bmp
+} catch (_: Exception) { null }

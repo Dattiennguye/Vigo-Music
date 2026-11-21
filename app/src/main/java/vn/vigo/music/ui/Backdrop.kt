@@ -69,7 +69,7 @@ private suspend fun moodOf(track: Track): Mood = withContext(Dispatchers.Default
 fun PlayerBackdrop(track: Track, frame: State<FloatArray>, playing: Boolean, modifier: Modifier = Modifier) {
     Crossfade(track.id, modifier, animationSpec = tween(700), label = "backdrop") { id ->
         val t = if (id == track.id) track else Library.byId(id) ?: track
-        val mood by produceState<Mood?>(null, t.id, t.hasArt) { value = moodOf(t) }
+        val mood by produceState<Mood?>(null, t.id, t.hasArt, t.artRev) { value = moodOf(t) }
         val inf = rememberInfiniteTransition(label = "kb")
         val phase by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(24000, easing = LinearEasing)), label = "phase")
         val breathe by inf.animateFloat(1.25f, 1.45f, infiniteRepeatable(tween(9000), RepeatMode.Reverse), label = "zoom")

@@ -27,6 +27,9 @@ import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.VideoLibrary
+import androidx.compose.material.icons.rounded.AudioFile
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -40,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
@@ -50,7 +54,9 @@ import vn.vigo.music.data.Library
 import vn.vigo.music.player.PlayerHub
 import java.text.Normalizer
 
-private enum class Filter(val label: String) { All("Tất cả"), Fav("Yêu thích"), Web("Tải từ web"), Recent("Mới thêm") }
+private enum class Filter(val label: String) { All("Tất cả"), Fav("Yêu thích"), Web("Tải từ web"), Video("Từ video"), Recent("Mới thêm") }
+
+enum class ImportKind { Audio, Video, Files }
 
 /** Bỏ dấu tiếng Việt để tìm "lac troi" vẫn ra "Lạc Trôi". */
 fun foldVi(s: String): String =
@@ -61,7 +67,7 @@ fun foldVi(s: String): String =
 @Composable
 fun LibraryScreen(
     bottomPadding: androidx.compose.ui.unit.Dp,
-    onImport: () -> Unit,
+    onImport: (ImportKind) -> Unit,
     onOpenWeb: () -> Unit,
     onOpenPlayer: () -> Unit,
     toast: (String) -> Unit,
@@ -78,6 +84,7 @@ fun LibraryScreen(
             Filter.All -> tracks.sortedBy { foldVi(it.title) }
             Filter.Fav -> tracks.filter { it.id in favs }.sortedBy { foldVi(it.title) }
             Filter.Web -> tracks.filter { it.source == "web" }.sortedByDescending { it.addedAt }
+            Filter.Video -> tracks.filter { it.source == "video" }.sortedByDescending { it.addedAt }
             Filter.Recent -> tracks.sortedByDescending { it.addedAt }.take(50)
         }
         val q = foldVi(query.trim())
@@ -96,10 +103,7 @@ fun LibraryScreen(
                     Text("Thư viện", style = VG.H2.copy(fontSize = 30.sp))
                     Text("${tracks.size} bài hát", style = VG.Small)
                 }
-                Box(
-                    Modifier.size(46.dp).bounceClick { onImport() }.clip(CircleShape).background(VG.Ink),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Rounded.Add, "Nhập nhạc", tint = Color.White) }
+                ImportButton(onImport)
             }
         }
 
@@ -217,15 +221,17 @@ fun SearchField(value: String, onChange: (String) -> Unit, placeholder: String =
 }
 
 @Composable
-private fun EmptyLibrary(onImport: () -> Unit, onOpenWeb: () -> Unit) {
+private fun EmptyLibrary(onImport: (ImportKind) -> Unit, onOpenWeb: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         SleeveHero("empty", "Bắt đầu nào", "Thư viện trống", spinning = false, modifier = Modifier.padding(horizontal = 14.dp))
         Spacer(Modifier.height(20.dp))
         Text("Thêm bài hát đầu tiên", style = VG.H2, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
-        Text("Chọn file nhạc trong máy, hoặc tìm trên web rồi bấm vào link .mp3 để tải về.", style = VG.Body, textAlign = TextAlign.Center)
+        Text("Chọn file nhạc trong máy, lấy tiếng từ video của bạn, hoặc tìm trên web rồi bấm vào link .mp3 để tải về.", style = VG.Body, textAlign = TextAlign.Center)
         Spacer(Modifier.height(22.dp))
-        BigButton("Chọn file nhạc", Icons.Rounded.LibraryMusic, dark = true, onClick = onImport)
+        BigButton("Chọn file nhạc", Icons.Rounded.LibraryMusic, dark = true, onClick = { onImport(ImportKind.Audio) })
+        Spacer(Modifier.height(10.dp))
+        BigButton("Lấy tiếng từ video", Icons.Rounded.VideoLibrary, dark = false, onClick = { onImport(ImportKind.Video) })
         Spacer(Modifier.height(10.dp))
         BigButton("Tìm & tải trên web", Icons.Rounded.Language, dark = false, onClick = onOpenWeb)
     }
@@ -241,5 +247,35 @@ fun BigButton(text: String, icon: androidx.compose.ui.graphics.vector.ImageVecto
         Icon(icon, null, tint = if (dark) Color.White else VG.Ink)
         Spacer(Modifier.width(10.dp))
         Text(text, color = if (dark) Color.White else VG.Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+/** Nút + : chọn nhập file nhạc, lấy tiếng từ video trong thư viện ảnh, hoặc mở trình quản lý file. */
+@Composable
+private fun ImportButton(onImport: (ImportKind) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Box(
+            Modifier.size(46.dp).bounceClick { open = true }.clip(CircleShape).background(VG.Ink),
+            contentAlignment = Alignment.Center,
+        ) {
+            val rot by androidx.compose.animation.core.animateFloatAsState(if (open) 45f else 0f, label = "plus")
+            Icon(Icons.Rounded.Add, "Thêm nhạc", tint = Color.White, modifier = Modifier.graphicsLayer { rotationZ = rot })
+        }
+        androidx.compose.material3.DropdownMenu(open, { open = false }, containerColor = VG.Card) {
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text("File nhạc") }, leadingIcon = { Icon(Icons.Rounded.AudioFile, null) },
+                onClick = { open = false; onImport(ImportKind.Audio) },
+            )
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Column { Text("Lấy tiếng từ video"); Text("Chọn trong thư viện ảnh/video", style = VG.Small.copy(fontSize = 11.sp)) } },
+                leadingIcon = { Icon(Icons.Rounded.VideoLibrary, null) },
+                onClick = { open = false; onImport(ImportKind.Video) },
+            )
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text("Duyệt file (nhạc & video)") }, leadingIcon = { Icon(Icons.Rounded.FolderOpen, null) },
+                onClick = { open = false; onImport(ImportKind.Files) },
+            )
+        }
     }
 }

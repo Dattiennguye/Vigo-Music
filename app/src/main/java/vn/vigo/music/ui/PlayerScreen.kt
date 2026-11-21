@@ -121,7 +121,7 @@ fun PlayerScreen(onClose: () -> Unit, toast: (String) -> Unit = {}) {
                     0 -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
                         SleeveHero(
                             keySeed = track.id,
-                            label = track.album.ifBlank { if (track.source == "web") "Tải từ web" else "Thư viện của tôi" },
+                            label = track.album.ifBlank { when (track.source) { "web" -> "Tải từ web"; "video" -> "Từ video"; else -> "Thư viện của tôi" } },
                             title = track.artist,
                             spinning = ps.isPlaying,
                             art = art, labelArt = art,

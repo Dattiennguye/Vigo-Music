@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedContent
@@ -95,6 +96,7 @@ fun MainScreen(incoming: MutableStateFlow<List<Uri>>) {
     var playerOpen by rememberSaveable { mutableStateOf(false) }
     var overlayPx by remember { mutableIntStateOf(0) }
     var importing by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var importPct by remember { mutableIntStateOf(-1) }
     val web = remember { WebHolder(context) }
 
     val ps by PlayerHub.state.collectAsState()
@@ -121,8 +123,9 @@ fun MainScreen(incoming: MutableStateFlow<List<Uri>>) {
         val ids = ArrayList<String>()
         uris.forEachIndexed { i, u ->
             importing = (i + 1) to uris.size
+            importPct = -1
             try {
-                ids.add(Importer.importUri(context, u).id); ok++
+                ids.add(Importer.importUri(context, u) { p -> importPct = p }.id); ok++
             } catch (e: NotAudioException) { fail++ } catch (e: Exception) { fail++ }
         }
         importing = null
@@ -139,7 +142,16 @@ fun MainScreen(incoming: MutableStateFlow<List<Uri>>) {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         scope.launch { importAll(uris, playAfter = false) }
     }
-    val onImport = { picker.launch(arrayOf("audio/*", "application/ogg")) }
+    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(20)) { uris ->
+        scope.launch { importAll(uris, playAfter = false) }
+    }
+    val onImport: (ImportKind) -> Unit = { kind ->
+        when (kind) {
+            ImportKind.Audio -> picker.launch(arrayOf("audio/*", "application/ogg"))
+            ImportKind.Video -> videoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+            ImportKind.Files -> picker.launch(arrayOf("audio/*", "video/*", "application/ogg"))
+        }
+    }
 
     val pendingIncoming by incoming.collectAsState()
     LaunchedEffect(pendingIncoming) {
@@ -189,7 +201,10 @@ fun MainScreen(incoming: MutableStateFlow<List<Uri>>) {
                 ) {
                     CircularProgressIndicator(Modifier.size(18.dp), color = VG.Peach, strokeWidth = 2.dp)
                     Spacer(Modifier.width(10.dp))
-                    Text("Đang nhập $i/$n…", color = Color.White, fontSize = 14.sp)
+                    Text(
+                        "Đang nhập $i/$n…" + if (importPct >= 0) " tách tiếng $importPct%" else "",
+                        color = Color.White, fontSize = 14.sp,
+                    )
                 }
             }
             AnimatedVisibility(

@@ -5,6 +5,8 @@ App nghe nhạc Android (Kotlin + Jetpack Compose + Media3), giao diện kem –
 ## Tính năng
 - **Giới thiệu (onboarding)** 3 trang, có nút Bỏ qua và Bắt đầu nghe.
 - **Thư viện**: nhập nhiều file nhạc cùng lúc (mp3, m4a, flac, wav, ogg, opus…). File được **chép vào bộ nhớ riêng của app**, nên vẫn nghe được khi đã xóa file gốc và khi không có mạng. Tự đọc tên bài, nghệ sĩ, album và ảnh bìa trong file.
+- **Lấy tiếng từ video** trong thư viện ảnh/video (bộ chọn của Android, không cần cấp quyền đọc toàn bộ thư viện): app bỏ phần hình, chỉ giữ âm thanh .m4a nhẹ, lấy một khung hình làm ảnh bìa. Chia sẻ video từ app khác sang cũng được.
+- **Đổi ảnh bìa** bài hát bằng ảnh trong máy (menu ⋮ → Đổi ảnh bìa).
 - Tìm kiếm không dấu ("lac troi" ra "Lạc Trôi"), lọc Tất cả / Yêu thích / Tải từ web / Mới thêm, phát ngẫu nhiên.
 - **Trình phát**: phát nền khi tắt màn hình, điều khiển trên thông báo và màn hình khóa, tự dừng khi rút tai nghe. Có trộn bài, lặp lại (tất cả / một bài), hàng chờ, chạm hoặc kéo trên sóng âm để tua.
 - **Tìm & tải**: trình duyệt trong app dùng Google. Bấm vào link file nhạc, nhấn giữ link, hoặc bấm nút tải của trang web thì app hỏi "Tải về thư viện?" rồi lưu luôn. Có nút **Dán link** để tải trực tiếp từ một đường dẫn, kèm bảng tiến trình tải (có hủy).

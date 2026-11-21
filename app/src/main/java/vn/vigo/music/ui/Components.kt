@@ -101,7 +101,7 @@ fun paletteFor(key: String): List<Color> = palettes[abs(key.hashCode()) % palett
 
 @Composable
 fun rememberArt(track: Track?, maxPx: Int = 512): ImageBitmap? {
-    val art by produceState<ImageBitmap?>(null, track?.id, track?.hasArt, maxPx) {
+    val art by produceState<ImageBitmap?>(null, track?.id, track?.artRev to track?.hasArt, maxPx) {
         value = track?.let { Library.artwork(it, maxPx)?.asImageBitmap() }
     }
     return art

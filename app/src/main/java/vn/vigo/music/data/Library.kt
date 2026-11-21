@@ -23,6 +23,7 @@ data class Track(
     val addedAt: Long,
     val source: String, // "file" | "web"
     val hasArt: Boolean,
+    val artRev: Long = 0,
 )
 
 data class Playlist(
@@ -78,7 +79,7 @@ object Library {
 
     suspend fun artwork(track: Track, maxPx: Int = 512): Bitmap? {
         if (!track.hasArt) return null
-        val key = "${track.id}@$maxPx"
+        val key = "${track.id}@${track.artRev}@$maxPx"
         artCache.get(key)?.let { return it }
         return withContext(Dispatchers.IO) {
             val f = artFileOf(track.id)
@@ -104,6 +105,17 @@ object Library {
         synchronized(lock) {
             _tracks.value = _tracks.value.map {
                 if (it.id == id) it.copy(title = title.ifBlank { it.title }, artist = artist) else it
+            }
+            save()
+        }
+    }
+
+    /** Đặt ảnh bìa mới từ ảnh trong máy (đã thu nhỏ & lưu JPEG). */
+    fun setArtwork(id: String, bmp: Bitmap) {
+        java.io.FileOutputStream(artFileOf(id)).use { bmp.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+        synchronized(lock) {
+            _tracks.value = _tracks.value.map {
+                if (it.id == id) it.copy(hasArt = true, artRev = System.currentTimeMillis()) else it
             }
             save()
         }
@@ -192,6 +204,7 @@ object Library {
                     addedAt = t.optLong("addedAt"),
                     source = t.optString("source", "file"),
                     hasArt = t.optBoolean("hasArt"),
+                    artRev = t.optLong("artRev"),
                 )
                 // Bỏ những bài mà file đã mất
                 if (File(musicDir, track.fileName).exists()) list.add(track)
@@ -219,7 +232,7 @@ object Library {
                     put("id", t.id); put("title", t.title); put("artist", t.artist)
                     put("album", t.album); put("durationMs", t.durationMs)
                     put("fileName", t.fileName); put("addedAt", t.addedAt)
-                    put("source", t.source); put("hasArt", t.hasArt)
+                    put("source", t.source); put("hasArt", t.hasArt); put("artRev", t.artRev)
                 })
             }
         })

@@ -19,8 +19,9 @@ object Importer {
 
     fun isAudioExt(ext: String) = ext.lowercase() in audioExt
 
-    suspend fun importUri(context: Context, uri: Uri): Track = withContext(Dispatchers.IO) {
+    suspend fun importUri(context: Context, uri: Uri, onProgress: (Int) -> Unit = {}): Track = withContext(Dispatchers.IO) {
         val cr = context.contentResolver
+        val mime = cr.getType(uri).orEmpty()
         var name = "Bài hát"
         cr.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
             if (c.moveToFirst()) c.getString(0)?.let { name = it }
@@ -30,6 +31,29 @@ object Importer {
             extFromMime(cr.getType(uri)) ?: "mp3"
         }
         val id = Library.newId()
+        val isVideo = mime.startsWith("video/") || ext in setOf("mp4", "mkv", "mov", "3gp", "webm", "avi") && !mime.startsWith("audio/")
+        if (isVideo) {
+            // Video: chỉ giữ phần tiếng, lấy 1 khung hình làm ảnh bìa
+            val out = File(Library.musicDir, "$id.m4a")
+            val ok = try {
+                VideoAudio.extract(context, uri, out, onProgress); out.length() > 0
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                out.delete(); throw e
+            } catch (e: Exception) {
+                out.delete(); false
+            }
+            val file = if (ok) out else {
+                // Máy không tách được (định dạng lạ): chép nguyên video, khi phát chỉ dùng tiếng
+                val raw = File(Library.musicDir, "$id.$ext")
+                cr.openInputStream(uri).use { input ->
+                    requireNotNull(input) { "Không mở được file" }
+                    FileOutputStream(raw).use { input.copyTo(it, 64 * 1024) }
+                }
+                raw
+            }
+            val frame = VideoAudio.frameOf(context, uri)
+            return@withContext finalize(id, file, name.substringBeforeLast('.'), "video", frame)
+        }
         val out = File(Library.musicDir, "$id.$ext")
         cr.openInputStream(uri).use { input ->
             requireNotNull(input) { "Không mở được file" }
@@ -39,7 +63,7 @@ object Importer {
     }
 
     /** Đọc metadata, trích ảnh bìa, thêm vào thư viện. Xóa file nếu không phải nhạc. */
-    fun finalize(id: String, file: File, fallbackTitle: String, source: String): Track {
+    fun finalize(id: String, file: File, fallbackTitle: String, source: String, cover: android.graphics.Bitmap? = null): Track {
         val r = MediaMetadataRetriever()
         try {
             try {
@@ -67,6 +91,12 @@ object Importer {
                     Library.artFileOf(id).writeBytes(bytes)
                     hasArt = true
                 }
+            }
+            if (!hasArt && cover != null) {
+                try {
+                    java.io.FileOutputStream(Library.artFileOf(id)).use { cover.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
+                    hasArt = true
+                } catch (_: Exception) {}
             }
             val cleanFallback = fallbackTitle.replace('_', ' ').replace(Regex("\\s+"), " ").trim()
             val track = Track(
