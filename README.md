@@ -22,15 +22,22 @@ App nghe nhạc Android (Kotlin + Jetpack Compose + Media3), giao diện kem –
 - **Lời bài hát**: lấy lời nhúng trong mp3 (ID3), tìm trên LRCLIB, hoặc dán/nhập file .lrc. Lời chạy theo nhạc kiểu karaoke (tô cam dần từng dòng, tự cuộn, chạm dòng để tua), kèm dòng lời chạy dưới tên bài.
 - **Nền bài hát**: ảnh bìa phóng to, làm mờ, trôi chậm (Ken Burns), có vầng màu lấy từ ảnh bìa phập phồng theo bass, chuyển mờ khi đổi bài.
 
+## Âm thanh & lời AI (v1.3)
+- **Hẹn giờ tắt nhạc**: 15 phút – 1,5 giờ hoặc "hết bài này", nhạc nhỏ dần 30 giây cuối rồi dừng.
+- **Chuyển bài mượt**: cuối bài nhỏ dần, bài sau lớn dần (0–12 giây).
+- **Bộ chỉnh âm**: Equalizer thật của Android theo dải tần của máy + Tăng bass, có preset (Bass mạnh, Giọng hát, Pop, Rock…) và chỉnh tay.
+- **Lời AI chạy trên máy**: whisper.cpp v1.9.5 (submodule `third_party/whisper.cpp`) biên dịch qua NDK cho arm64. Tải mô hình một lần (Nhanh 60 MB / Cân bằng 190 MB / Chính xác 575 MB), sau đó nhận dạng giọng hát offline, tạo lời LRC chạy theo nhạc, tự bỏ câu lặp và câu "ảo" kiểu "đăng ký kênh". Có nút sửa lời.
+
 ## Giới hạn (nói rõ)
 - Chỉ tải được **file âm thanh trực tiếp**. Nhạc trên YouTube, Spotify, Zing MP3, Apple Music… được bảo vệ hoặc phát dạng luồng nên **không tải được**. Hãy dùng nguồn bạn có quyền tải.
+- Lời AI là AI nghe nên có thể sai, nhất là khi nhạc nền to hoặc hát nhanh; bài 4 phút mất khoảng 1–3 phút với mô hình Cân bằng (ước tính trên Snapdragon 8 Gen 2).
 - Lời bài hát trên mạng phụ thuộc LRCLIB: nhạc Việt ít phổ biến có thể không có. Lời nhúng chỉ đọc được từ file mp3 (thẻ USLT).
 - Nếu link dẫn tới một trang web chứ không phải file nhạc, app báo lỗi và không lưu gì.
 
 ## Build APK
 Mỗi lần push lên `main`, GitHub Actions (workflow **Build Vigo Music APK**) sẽ build. Vào tab **Actions**, mở lần chạy mới nhất rồi tải artifact **Vigo-Music-apk**. Bên trong có `Vigo-Music.apk` để cài trực tiếp.
 
-Build trên máy: `gradle :app:assembleRelease` (JDK 17, Android SDK 35).
+Build trên máy: `git submodule update --init` rồi `gradle :app:assembleRelease` (JDK 17, Android SDK 35, NDK + CMake 3.22.1). APK chỉ chứa bản arm64-v8a.
 
 APK được ký bằng khóa debug để cài thử. Khi lên Google Play cần thay bằng khóa phát hành riêng.
 
